@@ -1,5 +1,7 @@
 # g726
 
+Forked from [github.com/lkmio/g726](https://github.com/lkmio/g726).
+
 Simple G.726 ADPCM encode/decode APIs with mandatory bits-per-sample selection.
 
 Supported code sizes:
@@ -14,7 +16,7 @@ The package exposes stateful `Encoder` and `Decoder` types for streaming, plus o
 ## Install
 
 ```bash
-go get github.com/lkmio/g726
+go get github.com/Distortions81/g726
 ```
 
 ## Quick start
@@ -26,7 +28,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lkmio/g726"
+	"github.com/Distortions81/g726"
 )
 
 func main() {

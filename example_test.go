@@ -3,7 +3,7 @@ package g726_test
 import (
 	"fmt"
 
-	"github.com/lkmio/g726"
+	"github.com/Distortions81/g726"
 )
 
 func ExampleEncodeBytes() {
