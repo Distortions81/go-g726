@@ -392,6 +392,16 @@ func clipPCMWord(sample int) int {
 	return sample
 }
 
+func clampPCM16(sample int) int {
+	if sample > 32767 {
+		return 32767
+	}
+	if sample < -32768 {
+		return -32768
+	}
+	return sample
+}
+
 type Compare interface {
 	~int | ~int8 | ~int16 | ~int32 | ~int64 |
 		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |

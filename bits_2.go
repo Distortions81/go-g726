@@ -72,7 +72,7 @@ func (state_ptr *codecState) encodeBits2(sl int) int {
 
 	dq = reconstruct(i&2, int(params2.reconstructTable[i]), y) /* quantized diff. */
 
-	sr = ifElse[int](dq < 0, se-(dq&0x3FFF), se+dq) /* reconstructed signal */
+	sr = int(int16(se + signedReconstructDelta(dq, 0x3FFF))) /* reconstructed signal */
 
 	dqsez = sr + sez - se /* pole prediction diff. */
 
@@ -102,11 +102,11 @@ func (state_ptr *codecState) decodeBits2(i int) int {
 	y = state_ptr.step_size()                                     /* adaptive quantizer step size */
 	dq = reconstruct(i&0x02, int(params2.reconstructTable[i]), y) /* unquantize pred diff */
 
-	sr = ifElse[int](dq < 0, se-(dq&0x3FFF), se+dq) /* reconst. signal */
+	sr = int(int16(se + signedReconstructDelta(dq, 0x3FFF))) /* reconst. signal */
 
 	dqsez = sr - se + sez /* pole prediction diff. */
 
 	state_ptr.update(2, y, int(params2.scaleTable[i]), int(params2.stationarityTable[i]), dq, sr, dqsez)
 
-	return clipPCMWord(sr << 2) /* sr was of 14-bit dynamic range */
+	return clampPCM16(sr << 2) /* sr was of 14-bit dynamic range */
 }

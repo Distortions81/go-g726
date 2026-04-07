@@ -102,5 +102,5 @@ func (state_ptr *codecState) decodeBits5(i int) int {
 
 	state_ptr.update(5, y, int(params5.scaleTable[i]), int(params5.stationarityTable[i]), dq, sr, dqsez)
 
-	return clipPCMWord(sr << 2) /* sr was of 14-bit dynamic range */
+	return clampPCM16(sr << 2) /* sr was of 14-bit dynamic range */
 }

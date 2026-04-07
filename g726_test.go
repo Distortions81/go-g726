@@ -3,6 +3,7 @@ package g726
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"testing"
 )
 
@@ -445,6 +446,79 @@ func TestZeroRegionStaysSilentAtLargeStepSize(t *testing.T) {
 	}
 }
 
+func TestFullScaleSineHasNoPopArtifacts(t *testing.T) {
+	const (
+		sampleRate  = 8000
+		frequency   = 440.0
+		amplitude   = 30000.0
+		sampleCount = 800
+	)
+
+	src := make([]int16, sampleCount)
+	for i := range src {
+		src[i] = int16(math.Round(amplitude * math.Sin(2*math.Pi*frequency*float64(i)/sampleRate)))
+	}
+
+	for _, bits := range []BitsPerSample{2, 3, 4, 5} {
+		adpcm, err := Encode(bits, src)
+		if err != nil {
+			t.Fatalf("Encode(%d) error: %v", bits, err)
+		}
+
+		decoded, err := Decode(bits, adpcm)
+		if err != nil {
+			t.Fatalf("Decode(%d) error: %v", bits, err)
+		}
+
+		var secondDerivativeSpikes int
+		var signCrossingJumps int
+		var worstCurvature int
+		var worstCurvatureIndex int
+		var worstJump int
+		var worstJumpIndex int
+		for i := 2; i < len(decoded); i++ {
+			d1 := int(decoded[i]) - int(decoded[i-1])
+			d0 := int(decoded[i-1]) - int(decoded[i-2])
+			s1 := int(src[i]) - int(src[i-1])
+			s0 := int(src[i-1]) - int(src[i-2])
+
+			decodedCurvature := abs(d1 - d0)
+			sourceCurvature := abs(s1 - s0)
+			if decodedCurvature > worstCurvature {
+				worstCurvature = decodedCurvature
+				worstCurvatureIndex = i
+			}
+			if decodedCurvature > sourceCurvature*4+6000 {
+				secondDerivativeSpikes++
+			}
+
+			jump := abs(int(decoded[i]) - int(decoded[i-1]))
+			if jump > worstJump {
+				worstJump = jump
+				worstJumpIndex = i
+			}
+			if signInt16(decoded[i]) != signInt16(decoded[i-1]) && jump > 12000 {
+				signCrossingJumps++
+			}
+		}
+
+		if secondDerivativeSpikes != 0 || signCrossingJumps != 0 {
+			t.Errorf(
+				"bits=%d full-scale sine produced %d curvature spikes and %d large sign-crossing jumps; worst curvature at %d src=%v dec=%v; worst jump at %d src=%v dec=%v",
+				bits,
+				secondDerivativeSpikes,
+				signCrossingJumps,
+				worstCurvatureIndex,
+				sampleWindow(src, worstCurvatureIndex, 4),
+				sampleWindow(decoded, worstCurvatureIndex, 4),
+				worstJumpIndex,
+				sampleWindow(src, worstJumpIndex, 4),
+				sampleWindow(decoded, worstJumpIndex, 4),
+			)
+		}
+	}
+}
+
 func fixtureSamples(bits BitsPerSample, count int) []int16 {
 	samples := make([]int16, count)
 	for i := range samples {
@@ -467,4 +541,26 @@ func splitSamples(bits BitsPerSample) int {
 	default:
 		return 0
 	}
+}
+
+func signInt16(v int16) int {
+	if v < 0 {
+		return -1
+	}
+	if v > 0 {
+		return 1
+	}
+	return 0
+}
+
+func sampleWindow(samples []int16, center, radius int) []int16 {
+	start := center - radius
+	if start < 0 {
+		start = 0
+	}
+	end := center + radius + 1
+	if end > len(samples) {
+		end = len(samples)
+	}
+	return samples[start:end]
 }
