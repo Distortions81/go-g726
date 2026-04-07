@@ -105,10 +105,22 @@ Decode to signed samples:
 samples, err := decoder.Decode(adpcm)
 ```
 
+Decode to signed samples with optional waveform cleanup:
+
+```go
+samples, err := decoder.DecodePostProcessed(adpcm)
+```
+
 Decode to little-endian PCM bytes:
 
 ```go
 pcmLE, err := decoder.DecodeBytes(adpcm)
+```
+
+Decode to little-endian PCM bytes with optional waveform cleanup:
+
+```go
+pcmLE, err := decoder.DecodeBytesPostProcessed(adpcm)
 ```
 
 Reset state before starting a new independent stream:
@@ -127,6 +139,8 @@ adpcm, err := g726.Encode(bitsPerSample, samples)
 adpcm, err := g726.EncodeBytes(bitsPerSample, pcmLE)
 samples, err := g726.Decode(bitsPerSample, adpcm)
 pcmLE, err := g726.DecodeBytes(bitsPerSample, adpcm)
+samples, err := g726.DecodePostProcessed(bitsPerSample, adpcm)
+pcmLE, err := g726.DecodeBytesPostProcessed(bitsPerSample, adpcm)
 ```
 
 ### Size helpers
@@ -169,6 +183,19 @@ Recent work in this fork has focused on state handling bugs, especially around:
 - avoiding invalid decoded PCM wrapping on extreme outputs
 
 The codec is still being exercised against loud-signal edge cases, especially for lower bit depths where overload artifacts are easier to trigger.
+
+## Post-Processing
+
+This package now includes an optional decode-side waveform cleanup pass:
+
+- `decoder.DecodePostProcessed(...)`
+- `decoder.DecodeBytesPostProcessed(...)`
+- `g726.DecodePostProcessed(...)`
+- `g726.DecodeBytesPostProcessed(...)`
+- `g726.Postprocess(bitsPerSample, samples)`
+- `g726.PostprocessBytes(bitsPerSample, pcmLE)`
+
+The post-process is conservative and targets abrupt single-sample spikes and unrealistic jump transitions that can sound like pops. It is intended as an opt-in cleanup stage, not a replacement for the raw codec output.
 
 ## Sample Conversion Commands
 

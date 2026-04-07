@@ -63,12 +63,28 @@ func Decode(bitsPerSample BitsPerSample, data []byte) ([]int16, error) {
 	return decoder.Decode(data)
 }
 
+func DecodePostProcessed(bitsPerSample BitsPerSample, data []byte) ([]int16, error) {
+	decoder, err := NewDecoder(bitsPerSample)
+	if err != nil {
+		return nil, err
+	}
+	return decoder.DecodePostProcessed(data)
+}
+
 func DecodeBytes(bitsPerSample BitsPerSample, data []byte) ([]byte, error) {
 	decoder, err := NewDecoder(bitsPerSample)
 	if err != nil {
 		return nil, err
 	}
 	return decoder.DecodeBytes(data)
+}
+
+func DecodeBytesPostProcessed(bitsPerSample BitsPerSample, data []byte) ([]byte, error) {
+	decoder, err := NewDecoder(bitsPerSample)
+	if err != nil {
+		return nil, err
+	}
+	return decoder.DecodeBytesPostProcessed(data)
 }
 
 func EncodedSize(bitsPerSample BitsPerSample, pcmBytes int) (int, error) {
@@ -167,6 +183,14 @@ func (d *Decoder) Decode(data []byte) ([]int16, error) {
 	return bytesToInt16s(pcmBytes), nil
 }
 
+func (d *Decoder) DecodePostProcessed(data []byte) ([]int16, error) {
+	samples, err := d.Decode(data)
+	if err != nil {
+		return nil, err
+	}
+	return Postprocess(d.state.bitsPerSample, samples), nil
+}
+
 func (d *Decoder) DecodeBytes(data []byte) ([]byte, error) {
 	size, err := DecodedSize(d.state.bitsPerSample, len(data))
 	if err != nil {
@@ -182,6 +206,14 @@ func (d *Decoder) DecodeBytes(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	return pcm[:n], nil
+}
+
+func (d *Decoder) DecodeBytesPostProcessed(data []byte) ([]byte, error) {
+	pcm, err := d.DecodeBytes(data)
+	if err != nil {
+		return nil, err
+	}
+	return PostprocessBytes(d.state.bitsPerSample, pcm)
 }
 
 func (state_ptr *codecState) encodeToBytes(pcm []byte, pkt []byte) (int, error) {

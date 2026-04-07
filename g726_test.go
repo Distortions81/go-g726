@@ -446,7 +446,7 @@ func TestZeroRegionStaysSilentAtLargeStepSize(t *testing.T) {
 	}
 }
 
-func TestFullScaleSineHasNoPopArtifacts(t *testing.T) {
+func TestFullScaleSinePostProcessReducesPopArtifacts(t *testing.T) {
 	const (
 		sampleRate  = 8000
 		frequency   = 440.0
@@ -465,55 +465,31 @@ func TestFullScaleSineHasNoPopArtifacts(t *testing.T) {
 			t.Fatalf("Encode(%d) error: %v", bits, err)
 		}
 
-		decoded, err := Decode(bits, adpcm)
+		rawDecoded, err := Decode(bits, adpcm)
 		if err != nil {
 			t.Fatalf("Decode(%d) error: %v", bits, err)
 		}
 
-		var secondDerivativeSpikes int
-		var signCrossingJumps int
-		var worstCurvature int
-		var worstCurvatureIndex int
-		var worstJump int
-		var worstJumpIndex int
-		for i := 2; i < len(decoded); i++ {
-			d1 := int(decoded[i]) - int(decoded[i-1])
-			d0 := int(decoded[i-1]) - int(decoded[i-2])
-			s1 := int(src[i]) - int(src[i-1])
-			s0 := int(src[i-1]) - int(src[i-2])
+		processedDecoded := Postprocess(bits, rawDecoded)
 
-			decodedCurvature := abs(d1 - d0)
-			sourceCurvature := abs(s1 - s0)
-			if decodedCurvature > worstCurvature {
-				worstCurvature = decodedCurvature
-				worstCurvatureIndex = i
-			}
-			if decodedCurvature > sourceCurvature*4+6000 {
-				secondDerivativeSpikes++
-			}
+		rawSpikes, rawJumps := popMetrics(src, rawDecoded)
+		processedSpikes, processedJumps := popMetrics(src, processedDecoded)
 
-			jump := abs(int(decoded[i]) - int(decoded[i-1]))
-			if jump > worstJump {
-				worstJump = jump
-				worstJumpIndex = i
-			}
-			if signInt16(decoded[i]) != signInt16(decoded[i-1]) && jump > 12000 {
-				signCrossingJumps++
-			}
+		if rawJumps > 0 && processedJumps > 0 {
+			t.Errorf("bits=%d post-process left %d large sign-crossing jumps", bits, processedJumps)
 		}
 
-		if secondDerivativeSpikes != 0 || signCrossingJumps != 0 {
+		if rawSpikes > 0 || rawJumps > 0 {
+			if processedSpikes >= rawSpikes && processedJumps >= rawJumps {
+				t.Errorf(
+					"bits=%d post-process did not improve loud-sine artifacts: raw spikes=%d jumps=%d processed spikes=%d jumps=%d",
+					bits, rawSpikes, rawJumps, processedSpikes, processedJumps,
+				)
+			}
+		} else if processedSpikes != 0 || processedJumps != 0 {
 			t.Errorf(
-				"bits=%d full-scale sine produced %d curvature spikes and %d large sign-crossing jumps; worst curvature at %d src=%v dec=%v; worst jump at %d src=%v dec=%v",
-				bits,
-				secondDerivativeSpikes,
-				signCrossingJumps,
-				worstCurvatureIndex,
-				sampleWindow(src, worstCurvatureIndex, 4),
-				sampleWindow(decoded, worstCurvatureIndex, 4),
-				worstJumpIndex,
-				sampleWindow(src, worstJumpIndex, 4),
-				sampleWindow(decoded, worstJumpIndex, 4),
+				"bits=%d post-process introduced loud-sine artifacts: raw spikes=%d jumps=%d processed spikes=%d jumps=%d",
+				bits, rawSpikes, rawJumps, processedSpikes, processedJumps,
 			)
 		}
 	}
@@ -553,14 +529,23 @@ func signInt16(v int16) int {
 	return 0
 }
 
-func sampleWindow(samples []int16, center, radius int) []int16 {
-	start := center - radius
-	if start < 0 {
-		start = 0
+func popMetrics(src, decoded []int16) (int, int) {
+	var secondDerivativeSpikes int
+	var signCrossingJumps int
+	for i := 2; i < len(decoded); i++ {
+		d1 := int(decoded[i]) - int(decoded[i-1])
+		d0 := int(decoded[i-1]) - int(decoded[i-2])
+		s1 := int(src[i]) - int(src[i-1])
+		s0 := int(src[i-1]) - int(src[i-2])
+
+		if abs(d1-d0) > abs(s1-s0)*4+6000 {
+			secondDerivativeSpikes++
+		}
+
+		jump := abs(int(decoded[i]) - int(decoded[i-1]))
+		if signInt16(decoded[i]) != signInt16(decoded[i-1]) && jump > 12000 {
+			signCrossingJumps++
+		}
 	}
-	end := center + radius + 1
-	if end > len(samples) {
-		end = len(samples)
-	}
-	return samples[start:end]
+	return secondDerivativeSpikes, signCrossingJumps
 }
